@@ -2,62 +2,45 @@
 #include <BH1750.h>
 #include <ArduinoBLE.h>
 
-BH1750 lightMeter;
-
-BLEService lightService("180C");           // Custom service
-BLEIntCharacteristic luxCharacteristic("2A6E", BLERead | BLENotify);
+BH1750 sensor;
+BLEService lightService("180C");
+BLEIntCharacteristic luxValue("2A6E", BLERead | BLENotify);
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
-
-  // Start I2C
   Wire.begin();
-  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-    Serial.println("BH1750 initialized");
-  } else {
-    Serial.println("Error initializing BH1750");
+
+  if (!sensor.begin()) {
+    Serial.println("BH1750 error");
     while (1);
   }
 
-  // Start BLE
   if (!BLE.begin()) {
-    Serial.println("Error starting BLE!");
+    Serial.println("BLE error");
     while (1);
   }
 
   BLE.setLocalName("Nano33_BH1750");
   BLE.setAdvertisedService(lightService);
-
-  lightService.addCharacteristic(luxCharacteristic);
+  lightService.addCharacteristic(luxValue);
   BLE.addService(lightService);
-
-  luxCharacteristic.writeValue(0);
-
+  luxValue.writeValue(0);
   BLE.advertise();
-  Serial.println("BLE device active, waiting for connections...");
+
+  Serial.println("Ready, waiting for Pi...");
 }
 
 void loop() {
-  // Wait for central device (Raspberry Pi)
   BLEDevice central = BLE.central();
-
   if (central) {
-    Serial.print("Connected to: ");
-    Serial.println(central.address());
-
+    Serial.println("Connected!");
     while (central.connected()) {
-      float lux = lightMeter.readLightLevel();
-      Serial.print("Light: ");
-      Serial.print(lux);
-      Serial.println(" lx");
-
-      // Send lux value over BLE
-      luxCharacteristic.writeValue((int)lux);
-
-      delay(1000); // send every second
+      int lux = sensor.readLightLevel();
+      Serial.print("Lux: ");
+      Serial.println(lux);
+      luxValue.writeValue(lux);
+      delay(1000);
     }
-
-    Serial.println("Central disconnected");
+    Serial.println("Disconnected");
   }
 }
